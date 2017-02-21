@@ -3,7 +3,6 @@ var serviceAccount = require("./key.json");
 var express = require("express");
 var app = express();
 var request = require('request');
-var axios = require('axios')
 
 
 admin.initializeApp({
