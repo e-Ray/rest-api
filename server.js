@@ -2,7 +2,7 @@ var admin = require("firebase-admin");
 var serviceAccount = require("./key.json");
 var express = require("express");
 var app = express();
-var request = require('request');
+var axios = require('axios')
 
 
 admin.initializeApp({
@@ -40,29 +40,31 @@ function combineArrays(erays, locations){
 
 app.get("/erays.json", function(req, res) {
 let erays;
-request('https://e-ray-e7f7e.firebaseio.com/erays.json?shallow=true', function (error, response, body) {
-  if (!error && response.statusCode == 200) {
-      erays=response.body;
+axios.get('https://e-ray-e7f7e.firebaseio.com/erays.json?shallow=true')
+      .then((resp) => {
+         erays=Object.keys(resp.data);
+         
       let result=[];
       let loc=[];
-      let splitArray=erays.split("\"");
       let tm=null;
-    for(i=1; i< splitArray.length; i=i+2){
+    for(i=0; i< erays.length; i++){
         
-        result.push(splitArray[i]);
-        ref.child(splitArray[i]+"/info").once('child_added', (snapshot) => {
-            loc.push(snapshot.val());
+        result.push(erays[i]);
+        ref.child(erays[i]+"/info").once('child_added', (snapshot) => {
+            let obj={location: snapshot.val()};
+            loc.push(obj);
         });
         }
-    tm=setTimeout(() => res.send(combineArrays(result, loc)), 500);
+        //TODO: Find a better solution for this
+        tm=setTimeout(() => res.send(combineArrays(result, loc)), 500);
 
+      })
+      .catch(err => {
+        console.log(err);
+      });
   }
-  else {
-    console.log("Error "+response.statusCode);
-  }
-});
 
-});
+);
 
 app.listen(3000);
  
