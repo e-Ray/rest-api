@@ -1,70 +1,139 @@
-var admin = require("firebase-admin");
-var serviceAccount = require("./key.json");
-var express = require("express");
-var app = express();
-var axios = require('axios')
+let admin = require("firebase-admin");
+let serviceAccount = require("./key.json");
+let express = require("express");
+let moment = require('moment');
+let app = express();
 
+let port=3000;
 
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-    databaseURL: "https://e-ray-e7f7e.firebaseio.com/"
+    databaseURL: "https://e-ray-e7f7e.firebaseio.com/",
+    databaseAuthVariableOverride: {
+    uid: "api"
+  }
+    
 });
     //admin.database.enableLogging(true);
-    var db=admin.database();
-    var ref=db.ref("erays/");
+    let db=admin.database();
+    let ref=db.ref("erays/");
 
 
 
-app.get("/erays", function(req, response) {
-    let sensor=req.query.sensor;
-    let erayid=req.query.id;
-    let date=new Date();
-     ref.child(erayid + '/' + sensor + '/'+ date.getFullYear() + '_'+ (date.getMonth()+1) + '_'+ (date.getDate()-1) + '/').limitToLast(100).once('value', (snapshot) => {
-         str = JSON.stringify(snapshot.val(), null, 4); 
-         console.log(str);
-         response.send(snapshot.val());
-    });
     
-});
-
-function combineArrays(erays, locations){
-    
-     let obj={};
-    erays.forEach(function(value,index){
-        obj[value]=locations[index];
-    });
-    console.log(obj);
-    return obj;
-    
+function getAllSensors(res, obj, erayid){
+     let sensors=["waterlevel", "watertemp", "temp", "rain", "windspeed"];
+     let values=[];
+     let date=new Date();
+     let count=0;
+        for(let i=0;i< sensors.length; i++){
+            ref.child(erayid + '/' + sensors[i] + '/'+ date.getFullYear() + '_'+ (date.getMonth()+1) + '_'+ (date.getDate()) + '/').limitToLast(20).once('value', (snapshot) => {
+               values.push(snapshot.val()); 
+               obj[sensors[i]]=snapshot.val();
+               if(count==sensors.length-1) res.send(obj);
+                count++;
+            });
+        }
+        
 }
 
+app.get("/erays/:id/", function(req, res) {
+    let date=new Date();
+    let sensor=req.query.sensor;
+    let fromDate=req.query.from;
+    let toDate=req.query.to;
+    let last=100;
+    let idToken=req.query.auth;
+    let uid;
+    if(req.query.last != null)last=parseInt(req.query.last);
+    
+    if(sensor !=null ){
+        if(sensor== 'performance'  || sensor=='rpm'){
+            admin.auth().verifyIdToken(idToken)
+                .then(function(decodedToken) {
+                uid = decodedToken.uid;
+                let ref=db.ref("erays/"+ req.params.id + "/info/owner");
+                ref.once('value', (snapshot) => {
+                    if(uid != snapshot.val()){
+                        res.send('forbidden');
+                    }
+                    else {
+                            getSensorData(req.params.id, sensor, fromDate, toDate, last, res);
+                        }
+                });
+                
+    }).catch(function(error) {
+    res.send(error);
+  });
+        }
+        else
+            getSensorData(req.params.id, sensor, fromDate, toDate, last, res);
+    }
+    
+    else {
+            let obj={};
+            let sensors=["waterlevel", "watertemp", "temp", "rain", "windspeed"];
+            getAllSensors(res, obj, req.params.id);
+            
+          
+          
+        };
+    }
+    
+);
+function getSensorData(erayid, sensor, fromDate, toDate, last, res){
+    if(fromDate != null && toDate != null ){
+                let start=moment(fromDate, 'YYYY M D');
+                let end=moment(toDate, 'YYYY M D');
+                let arr=[];
+                let m=moment(start);
+                let count=m.diff(end,'days');
+                for(m=moment(start); m.diff(end, 'days') <= 0; m.add(1, 'days')){
+                    ref.child(erayid + '/' + sensor + '/'+ m.format('YYYY[_]M[_]D')+ '/').once('value', (snapshot) => {
+                        arr.push(snapshot.val());
+                        if(count==0)res.send(arr);
+                        count++;
+                        });
+                };
+            
+            }
+            else{
+                let m=moment(new Date());
+                console.log(erayid + '/' + sensor + '/'+ m.format('YYYY[_]M[_]D')+ '/');
+                    ref.child(erayid + '/' + sensor + '/'+ m.format('YYYY[_]M[_]D')+ '/').limitToLast(last).on('value', (snapshot) => {
+                        res.send(snapshot.val());
+                    });
+                
+            }
+}
+function getOwner(erayid, res, idToken){
+    admin.auth().verifyIdToken(idToken)
+                .then(function(decodedToken) {
+                uid = decodedToken.uid;
+                let ref=db.ref("erays/"+ erayid + "/info/owner");
+                ref.once('value', (snapshot) => {
+                    console.log(snapshot.val());            
+                    if(uid != snapshot.val()) res.send('forbidden');
+                         else res.send("!");
+                });
+    }).catch(function(error) {
+    res.send(error);
+    console.log(error);
+  });
+
+}
 app.get("/erays.json", function(req, res) {
 let erays;
-axios.get('https://e-ray-e7f7e.firebaseio.com/erays.json?shallow=true')
-      .then((resp) => {
-         erays=Object.keys(resp.data);
-         
-      let result=[];
-      let loc=[];
-      let tm=null;
-    for(i=0; i< erays.length; i++){
-        
-        result.push(erays[i]);
-        ref.child(erays[i]+"/info").once('child_added', (snapshot) => {
-            let obj={location: snapshot.val()};
-            loc.push(obj);
-        });
-        }
-        //TODO: Find a better solution for this
-        tm=setTimeout(() => res.send(combineArrays(result, loc)), 500);
+let erayref=db.ref("erays/eraylist");
+  erayref.once("value", (snapshot) => {
+      console.log(snapshot.val());
+      res.send(snapshot.val());
+  });
+});
+    
 
-      })
-      .catch(err => {
-        console.log(err);
-      });
-  }
 
-);
 
-app.listen(3000);
+
+app.listen(port);
  
