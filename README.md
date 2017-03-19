@@ -1,4 +1,6 @@
 ## Usage
+
+[![Greenkeeper badge](https://badges.greenkeeper.io/e-Ray/rest-api.svg)](https://greenkeeper.io/)
 1. Start with "node server.js"
 2. Enter a API request to "localhost:3000/" either directly in your browser or through the command line
 3. In order to work the API requires a Firebase service account with a corresponding key. The key can be generated from the Firebase console.
