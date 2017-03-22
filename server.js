@@ -112,7 +112,6 @@ function getOwner(erayid, res, idToken){
                 uid = decodedToken.uid;
                 let ref=db.ref("erays/"+ erayid + "/info/owner");
                 ref.once('value', (snapshot) => {
-                    console.log(snapshot.val());            
                     if(uid != snapshot.val()) res.send('forbidden');
                          else res.send("!");
                 });
@@ -126,7 +125,6 @@ app.get("/erays.json", function(req, res) {
 let erays;
 let erayref=db.ref("erays/eraylist");
   erayref.once("value", (snapshot) => {
-      console.log(snapshot.val());
       res.send(snapshot.val());
   });
 });
