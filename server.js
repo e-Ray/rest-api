@@ -49,22 +49,26 @@ app.get("/erays/:id/", function(req, res) {
     
     if(sensor !=null ){
         if(sensor== 'performance'  || sensor=='rpm'){
+            if(idToken==null)res.send('permission denied');
+        else {
             admin.auth().verifyIdToken(idToken)
                 .then(function(decodedToken) {
                 uid = decodedToken.uid;
                 let ref=db.ref("erays/"+ req.params.id + "/info/owner");
                 ref.once('value', (snapshot) => {
                     if(uid != snapshot.val()){
-                        res.send('forbidden');
+                        res.send('permission denied');
                     }
                     else {
                             getSensorData(req.params.id, sensor, fromDate, toDate, last, res);
                         }
                 });
                 
-    }).catch(function(error) {
-    res.send(error);
-  });
+            }).catch(function(error) {
+                res.send(error);
+            });
+            
+        }
         }
         else
             getSensorData(req.params.id, sensor, fromDate, toDate, last, res);
@@ -99,7 +103,6 @@ function getSensorData(erayid, sensor, fromDate, toDate, last, res){
             }
             else{
                 let m=moment(new Date());
-                console.log(erayid + '/' + sensor + '/'+ m.format('YYYY[_]M[_]D')+ '/');
                     ref.child(erayid + '/' + sensor + '/'+ m.format('YYYY[_]M[_]D')+ '/').limitToLast(last).on('value', (snapshot) => {
                         res.send(snapshot.val());
                     });
@@ -117,7 +120,6 @@ function getOwner(erayid, res, idToken){
                 });
     }).catch(function(error) {
     res.send(error);
-    console.log(error);
   });
 
 }
